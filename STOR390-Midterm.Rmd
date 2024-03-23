@@ -1,0 +1,127 @@
+---
+title: "STOR 390: Moral Machine Learning  \nMidterm"
+author: "Logan Schmitt"
+date: "03/22/2024"
+output:
+  html_document:
+    number_sections: yes
+  pdf_document: default
+---
+
+# Disparate Impact of Artificial Intelligence Bias in Ridehailing Economy's Price Discrimination Algorithms
+
+## Introduction 
+Picture this: you’ve finally found yourself lost in an unfamiliar area. After a few hours of attempting to find your way back home, you finally give in and order an Uber to rescue you. However, when looking at the price of the trip, you’ve noticed it is exorbitantly higher than any price you’ve seen before. When attempting to book a ride through other apps, you realize you cannot escape this price disparity. 
+
+This is the future of AI in ridesharing services.
+
+Many ridesharing services, such as Uber and Lyft, are beginning to calculate fare prices utilizing AI technologies. Several factors go into the algorithm’s pricing, such as trip length, supply, and demand. This approach differs from traditional taxicab services, which primarily charge a base fare along with additional charges per mile. 
+
+However, an analysis of over 68 million ride-hailing samples from the city of Chicago indicates neighborhoods with larger non-white populations, higher poverty levels, younger residents, and higher education levels are significantly associated with higher fare prices.
+
+To determine if these findings were unique to Chicago, I analyzed Uber and Lyft trips from the city of Boston. Using the data provided, I calculated the average price per trip for each of the 14 neighborhoods present and plotted the normalized prices on a map. Two areas exhibited above-average fares, North End and West End, both of which share similar characteristics discovered within neighborhoods in Chicago. North End contains some of the highest levels of educated residents in the city. West End contains some of the highest poverty rates throughout the entire city. As a result, the pricing algorithms used by transportation network companies may unintentionally discriminate based on certain demographic characteristics of rider’s neighborhoods.
+
+```{r setup, echo=FALSE, warning=FALSE, message=FALSE}
+library(dplyr)
+library(leaflet)
+library(leaflet.extras)
+
+filePath = "/Users/lks/Desktop/STOR 390 MIDTERM//rideshare_kaggle.csv"
+data1 = read.csv(filePath)
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# Getting the average price per neighborhood
+
+average_price = data1 %>%
+  group_by(latitude, longitude) %>%
+  summarise(average_price = mean(price, na.rm = TRUE))
+
+# Combining it all together
+locations = data.frame(
+  lat = c(42.364, 42.352, 42.3398, 42.3503, 42.3505, 42.3505, 42.3519, 42.3559, 42.3588, 42.3647, 42.3661, 42.3661),
+  lon = c(-71.060, -71.065, -71.0892, -71.0810, -71.1054, -71.1054, -71.0551, -71.0550, -71.0707, -71.0542, -71.0631, -71.0631),
+  neighborhood = c("Haymarket Square", "Theatre District", "Northeastern University", "Back Bay", "Boston University",
+             "Fenway", "South Station", "Financial District", "Beacon Hill", "North End", "North Station", "West End"), 
+  price = c(16.50, 16.47, 16.49, 16.50, 16.67, 16.51, 16.58, 16.52, 16.53, 16.56, 16.59, 16.54)
+)
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+normalized_prices <- (locations$price - min(locations$price)) / (max(locations$price) - min(locations$price))
+
+leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addHeatmap(lng = locations$lon, lat = locations$lat, intensity = normalized_prices, radius = 20, blur = 15, max = 1) %>%
+  addLegend(position = "bottomright", 
+            title = "Price Intensity", 
+            colors = c("blue", "lime", "red"), 
+            labels = c("Higher", "Middle", "Lower"), 
+            opacity = 1)
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# Generate a color palette
+pricePalette <- colorNumeric(palette = "viridis", domain = locations$price)
+
+# Create the leaflet map
+mapp <- leaflet(locations) %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addCircleMarkers(~lon, ~lat, color = ~pricePalette(price), stroke = FALSE, fillOpacity = 0.75,
+                   popup = ~paste(neighborhood, "<br>Price: $", price)) %>%
+  addLegend("bottomright", pal = pricePalette, values = ~price,
+            title = "Price",
+            labFormat = labelFormat(prefix = "$"))
+mapp
+```
+
+
+
+## Data
+The data used in this analysis primarily comes from two sources: ride-hailing data from the city of Chicago and American Community Survey (ACS) data for Chicago's census tracts. The city of Chicago was specifically chosen due to a city-wide law established in 2018 requiring ride-hailing applications to explicitly disclose fare prices. As a result, Chicago ride-hailing data after 2017 provides the most complete dataset for understanding ride-hailing fare pricing and price discrimination at the time of publication of the study. 
+
+#### Chicago Ridehailing Data:
+The ride-hailing data used in this study originally contained over 100 million trips in the city of Chicago from November 2018 to September 2019. The dataset contains information about the duration, charges, and pickup and drop-off locations for each trip. However, many of these trips contain rides that utilize different pricing strategies than the typical single-rider trips, such as those involving the pickup and dropoff of multiple individuals. After excluding these trips, ~68 million unique ride-hailing rides remained. 
+
+#### American Community Survey Data:
+The ACS census tract demographic information used in the analysis comes from the 2018 United States Census Bureau. Since no rider characteristics are present in the Chicago ride-hailing data, ACS data is used to connect the pickup and dropoff locations to census information. This allows for assumptions to be created based on the neighborhoods in which riders were picked up or dropped off, including ethnicity, poverty levels, age, and education levels. This combination allows for a detailed examination of how demographic factors might influence pricing algorithms in ride-hailing services
+
+
+
+## Summary of Methods 
+Effect sizes were calculated to find AI biases present in the dynamic pricing algorithm. To calculate these effect sizes, Cohen's d was calculated to quantify the difference in mean fare pricing between two groups relative to their standard deviation. Relating this to the dataset, it measures the differential impact of fare pricing on neighborhoods with distinct demographic characteristics.
+
+For continuous demographic attributes, such as the percentage of non-white residents, the study uses random effects models from meta-analysis literature to combine multiple effect sizes across different demographic intervals. This allows for an evaluation of the association between fare pricing and neighborhood demographics. This is because single effect sizes are not enough to quantify the overall association between these continuous-valued demographic attributes and their observed outcomes. Take for example the calculation of neighborhoods less than 50% non-white versus all other neighborhoods. The effect size will only measure the mean fare price difference between these specific neighborhoods, excluding all other non-white percentages. As a result, combined effect sizes must be computed for each demographic attribute, contrasting fare prices in neighborhoods with demographic values below and above certain thresholds. This involves comparing groups of neighborhoods based on these thresholds to determine how demographic attributes influence fare pricing.
+
+Permutation testing was used to calculate the statistical significance of the combined effect sizes, permutation testing was used. This evaluates the likelihood that observed differences in fare pricing across neighborhoods could occur by chance, thus validating the impact of demographic factors on fare pricing.
+
+
+
+## Description of Normative Consideration
+There are two main normative considerations associated with the dynamic pricing algorithms used by ridesharing platforms: AI bias and algorithmic transparency.
+
+#### AI Bias:
+As previously mentioned, the difference in fare pricing is strongly associated with demographic characteristics of riders' neighborhoods; areas with larger non-white populations, higher poverty levels, younger residents, and higher education levels tend to see higher fare prices. This unintentional difference in outcomes, known as disparate impact, unintentionally and disproportionately affects certain neighborhoods, and therefore the groups of people living in these areas. These biases suggest that the AI algorithms, likely through their reliance on historical data and patterns, inadvertently learn and perpetuate existing social and economic inequalities. This strongly affects the affordability and accessibility of transportation services for these populations.
+
+##### Lack of Transparency:
+Uber, Lyft, and other similar ride-hailing services, despite describing some of the factors used in determining prices, fail to communicate the exact methodology used within these algorithms and how it affects other aspects of their service. For example, above-average fare pricing within certain areas may affect the supply and demand for the ridesharing service, potentially causing problems in accurate ride forecasting. This in turn not only inhibits the ability to identify and correct any biases present within these pricing algorithms but also can lead to the potential to create negative feedback loops.
+
+
+
+## Conclusion
+Ridesharing services, such as Uber and Lyft, set their fare prices through the use of dynamic pricing algorithms. These methods take into account patterns in certain trip factors, such as ride duration, pickup and drop-off locations, and trip frequency to set prices for customers. 
+
+However, an investigation of over 68 million trips in Chicago has shown the fare pricing algorithms generated a pricing scheme that results in disparate impact given certain neighborhood demographics, as seen in Chicago, IL. Specifically, neighborhoods with larger non-white populations, higher poverty levels, younger residents, and higher education levels tend to exhibit higher fare prices, as indicated by combined effect sizes and permutation testing.
+
+This arbitrary discrimination has a strong potential to create a feedback loop. For example, in 2017 Uber launched “Uber Movement,” a platform on which cities can purchase and access transportation data collected by the service for the creation and development of “smart cities.” City managers and other officials leverage this data to make informed decisions about flows and trends of traffic to improve transportation efficiency. Biased information from these ride-hailing services can effectively lead to inequalities in resource allocation; therefore, noticing the presence of these disparities and working towards fixing them is crucial in promoting equal distribution of resources.
+
+
+
+
+
+
+
+
+
+
